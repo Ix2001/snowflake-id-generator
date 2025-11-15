@@ -1,0 +1,17 @@
+.gitignore
+.gradle
+build
+!build/libs
+.idea
+*.iml
+# OS
+.DS_Store
+Thumbs.db
+*.log
+test-output/
+# OS
+.DS_Store
+Thumbs.db
+# Logs and reports
+*.log
+test-output/
