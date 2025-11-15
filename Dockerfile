@@ -1,47 +1,29 @@
 FROM eclipse-temurin:21-jdk-jammy AS builder
 
-
 WORKDIR /app
 
-# Копирование файлов сборки Gradle
 COPY build.gradle.kts settings.gradle.kts gradlew ./
-COPY gradle gradle
 
+COPY gradle gradle
 
 RUN ./gradlew dependencies || true
 
-
 COPY src src
 
-
-RUN ./gradlew clean bootJar -x test \
-    -x ktlintCheck -x ktlintFormat -x ktlintKotlinScriptCheck \
-    -x ktlintMainSourceSetCheck -x ktlintTestSourceSetCheck \
-    -x runKtlintCheckOverMainSourceSet -x runKtlintCheckOverTestSourceSet \
-    -x detekt
-
-
-RUN find build/libs -name "*.jar" -not -name "*-plain.jar" | head -1
+RUN ./gradlew clean build -x test -x ktlintKotlinScriptCheck -x ktlintTestSourceSetCheck -x ktlintMainSourceSetCheck
 
 FROM eclipse-temurin:21-jre-jammy
 
-
-RUN groupadd -r appuser && \
-    useradd -r -g appuser appuser
-
-
+RUN useradd --system --create-home --uid 5050 user
 WORKDIR /app
 
+COPY --chown=user:user --from=builder /app/build/libs/*-SNAPSHOT.jar app.jar
 
-COPY --from=builder /app/build/libs/*.jar app.jar
+RUN chown -R user:user /app
 
-
-RUN chown -R appuser:appuser /app
-
-USER appuser
+USER user
 
 EXPOSE 8080
 
-# Запуск приложения
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
