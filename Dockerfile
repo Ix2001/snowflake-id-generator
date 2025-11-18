@@ -23,6 +23,4 @@ RUN chown -R user:user /app
 
 USER user
 
-EXPOSE 8080
-
 ENTRYPOINT ["java", "-jar", "app.jar"]
