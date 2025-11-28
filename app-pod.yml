@@ -7,6 +7,22 @@ spec:
     - name: snowflake-app
       image: snowflake-app:latest
       imagePullPolicy: Never
+      livenessProbe:
+        httpGet:
+          path: /management/health/liveness
+          port: 8080
+        timeoutSeconds: 2
+        periodSeconds: 20
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          path: /management/health/readiness
+          port: 8080
+        initialDelaySeconds: 5
+        timeoutSeconds: 1
+        periodSeconds: 5
+        failureThreshold: 3
+        successThreshold: 1
       ports:
         - containerPort: 8080
           name: http
