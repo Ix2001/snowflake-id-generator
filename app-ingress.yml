@@ -4,6 +4,10 @@ metadata:
   name: snowflake-app-ingress
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - snowflake.dev.local
+      secretName: snowflake-app-tls
   rules:
     - host: snowflake.dev.local
       http:
