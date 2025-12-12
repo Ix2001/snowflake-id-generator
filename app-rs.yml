@@ -12,6 +12,18 @@ spec:
       labels:
         app: snowflake-app
     spec:
+      initContainers:
+        - name: worker-id-generator
+          image: busybox:latest
+          command: ['sh', '-c']
+          args:
+            - |
+              WORKER_ID=$(shuf -i 0-1023 -n 1)
+              echo "$WORKER_ID" > /shared/worker-id
+              echo "Generated worker-id: $WORKER_ID"
+          volumeMounts:
+            - name: worker-id-volume
+              mountPath: /shared
       containers:
         - name: snowflake-app
           image: snowflake-app:latest
@@ -20,6 +32,33 @@ spec:
             - containerPort: 8080
               name: http
               protocol: TCP
+          env:
+            - name: SPRING_APPLICATION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: snowflake-app-config
+                  key: spring.application.name
+            - name: SNOWFLAKE_SETTINGS_STARTING_EPOCH
+              valueFrom:
+                configMapKeyRef:
+                  name: snowflake-app-config
+                  key: snowflake-settings.starting-epoch
+            - name: SNOWFLAKE_SETTINGS_DATACENTER_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: snowflake-app-config
+                  key: snowflake-settings.datacenter-id
+            - name: SNOWFLAKE_SETTINGS_WORKER_ID
+              value: ""
+          volumeMounts:
+            - name: worker-id-volume
+              mountPath: /shared
+              readOnly: true
+          command: ['sh', '-c']
+          args:
+            - |
+              export SNOWFLAKE_SETTINGS_WORKER_ID=$(cat /shared/worker-id)
+              exec java -jar app.jar
           livenessProbe:
             httpGet:
               path: /management/health/liveness
@@ -37,3 +76,6 @@ spec:
             periodSeconds: 5
             failureThreshold: 3
             successThreshold: 1
+      volumes:
+        - name: worker-id-volume
+          emptyDir: {}
