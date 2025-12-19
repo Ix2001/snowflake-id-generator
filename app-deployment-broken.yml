@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snowflake-app-deployment
+  labels:
+    app: snowflake-app
+  annotations:
+    kubernetes.io/change-cause: "Update to version 2.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: snowflake-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app: snowflake-app
+    spec:
+      initContainers:
+        - name: worker-id-generator
+          image: busybox:latest
+          command: ['sh', '-c']
+          args:
+            - |
+              WORKER_ID=$(shuf -i 0-1023 -n 1)
+              echo "$WORKER_ID" > /shared/worker-id
+              echo "Generated worker-id: $WORKER_ID"
+          volumeMounts:
+            - name: worker-id-volume
+              mountPath: /shared
+      containers:
+        - name: snowflake-app
+          image: snowflake-app:2.0.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: SPRING_APPLICATION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: snowflake-app-config
+                  key: spring.application.name
+            - name: SNOWFLAKE_SETTINGS_STARTING_EPOCH
+              valueFrom:
+                configMapKeyRef:
+                  name: snowflake-app-config
+                  key: snowflake-settings.starting-epoch
+            - name: SNOWFLAKE_SETTINGS_DATACENTER_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: snowflake-app-config
+                  key: snowflake-settings.datacenter-id
+            - name: SNOWFLAKE_SETTINGS_WORKER_ID
+              value: ""
+          volumeMounts:
+            - name: worker-id-volume
+              mountPath: /shared
+              readOnly: true
+          command: ['sh', '-c']
+          args:
+            - |
+              export SNOWFLAKE_SETTINGS_WORKER_ID=$(cat /shared/worker-id)
+              exec java -jar app.jar
+          livenessProbe:
+            httpGet:
+              path: /management/health/liveness
+              port: 8080
+            initialDelaySeconds: 15
+            timeoutSeconds: 2
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /management/health/readiness
+              port: 8080
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+      volumes:
+        - name: worker-id-volume
+          emptyDir: {}
